@@ -2,6 +2,7 @@ import React from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AuthPage } from './pages/AuthPage';
 import { BookingSystem } from './components/BookingSystem';
+import { WeeklySchedule } from './components/WeeklySchedule';
 
 const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
@@ -13,7 +14,7 @@ const Dashboard: React.FC = () => {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          maxWidth: '1000px',
+          maxWidth: '1100px',
           margin: '0 auto',
           paddingBottom: '1rem',
           borderBottom: '1px solid #eee',
@@ -32,7 +33,16 @@ const Dashboard: React.FC = () => {
       </header>
 
       <main style={{ marginTop: '1.5rem' }}>
+        {/* Форма створення бронювання */}
         <BookingSystem />
+
+        {/* Тижнева сітка з часовими поясами (Крок 8) */}
+        <div style={{ marginTop: '2rem' }}>
+          <h3 style={{ maxWidth: '1100px', margin: '0 auto 1rem auto' }}>
+            Тижневий розклад кімнати
+          </h3>
+          <WeeklySchedule />
+        </div>
       </main>
     </div>
   );
