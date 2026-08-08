@@ -10,11 +10,14 @@ const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key';
 // Реєстрація
 router.post('/register', async (req: Request, res: Response) => {
   try {
-    const { email, password, name } = req.body;
+    const { password, name } = req.body;
+    let { email } = req.body;
 
     if (!email || !password || !name) {
       return res.status(400).json({ error: "Усі поля (email, password, name) обов'язкові" });
     }
+
+    email = email.trim().toLowerCase();
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
@@ -40,11 +43,13 @@ router.post('/register', async (req: Request, res: Response) => {
 // Логін
 router.post('/login', async (req: Request, res: Response) => {
   try {
-    const { email, password } = req.body;
+    let { email, password } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ error: "email та password обов'язкові" });
     }
+
+    email = email.trim().toLowerCase();
 
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
@@ -67,7 +72,6 @@ router.post('/login', async (req: Request, res: Response) => {
   }
 });
 
-// Отримання поточного юзера
 router.get('/me', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
     const user = await prisma.user.findUnique({

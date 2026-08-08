@@ -4,10 +4,31 @@ import { authenticateToken, AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
-// Отримати всі бронювання (або за конкретну дату / кімнату)
+// Функція для перевірки робочих годин у часовому поясі Europe/Kyiv (09:00 - 19:00)
+const isValidWorkingHoursInKyiv = (start: Date, end: Date): boolean => {
+  const getKyivHourAndMin = (date: Date) => {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Europe/Kyiv',
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: false,
+    });
+    const parts = formatter.formatToParts(date);
+    const hour = parseInt(parts.find((p) => p.type === 'hour')?.value || '0', 10);
+    const minute = parseInt(parts.find((p) => p.type === 'minute')?.value || '0', 10);
+    return hour + minute / 60;
+  };
+
+  const startHour = getKyivHourAndMin(start);
+  const endHour = getKyivHourAndMin(end);
+
+  return startHour >= 9 && endHour <= 19;
+};
+
+// Отримати всі бронювання
 router.get('/', async (req: AuthRequest, res: Response) => {
   try {
-    const { roomId, date } = req.query;
+    const { roomId, start, end } = req.query;
 
     const whereClause: any = {};
 
@@ -15,14 +36,10 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       whereClause.roomId = String(roomId);
     }
 
-    if (date) {
-      const targetDate = new Date(String(date));
-      const startOfDay = new Date(targetDate.setUTCHours(0, 0, 0, 0));
-      const endOfDay = new Date(targetDate.setUTCHours(23, 59, 59, 999));
-
+    if (start && end) {
       whereClause.startAt = {
-        gte: startOfDay,
-        lte: endOfDay,
+        gte: new Date(String(start)),
+        lte: new Date(String(end)),
       };
     }
 
@@ -41,30 +58,47 @@ router.get('/', async (req: AuthRequest, res: Response) => {
   }
 });
 
-// Створити нове бронювання (з валідацією перетинів та UTC)
+// Створити нове бронювання
 router.post('/', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
     const { title, roomId, startAt, endAt } = req.body;
     const userId = req.user?.id;
 
     if (!title || !roomId || !startAt || !endAt || !userId) {
-      return res.status(400).json({ error: 'Усі поля є обов’язковими' });
+      return res.status(400).json({ error: "Усі поля є обов'язковими" });
     }
 
     const start = new Date(startAt);
     const end = new Date(endAt);
+    const now = new Date();
 
-    // 1. Час початку має бути раніше за час завершення
+    // 1. Бронювання лише у майбутньому
+    if (start < now) {
+      return res.status(400).json({ error: 'Бронювання можливе лише у майбутньому часі' });
+    }
+
+    // 2. Час початку раніше за час завершення
     if (start >= end) {
       return res.status(400).json({ error: 'Час початку має бути раніше за час завершення' });
     }
 
-    // 2. Бронювання не може бути в минулому
-    if (start < new Date()) {
-      return res.status(400).json({ error: 'Неможливо забронювати час у минулому' });
+    // 3. Кратність 30 хвилинам
+    if (start.getMinutes() % 30 !== 0 || end.getMinutes() % 30 !== 0) {
+      return res.status(400).json({ error: 'Час початку та завершення має бути кратним 30 хвилинам' });
     }
 
-    // 3. Перевірка перетину слотів (start1 < end2 AND end1 > start2)
+    // 4. Тривалість від 30 хв (0.5 год) до 4 годин (240 хв)
+    const durationMinutes = (end.getTime() - start.getTime()) / (1000 * 60);
+    if (durationMinutes < 30 || durationMinutes > 240) {
+      return res.status(400).json({ error: 'Тривалість бронювання має бути від 30 хвилин до 4 годин' });
+    }
+
+    // 5. Робочі години 09:00 - 19:00 за київським часом (Europe/Kyiv)
+    if (!isValidWorkingHoursInKyiv(start, end)) {
+      return res.status(400).json({ error: 'Бронювання можливе лише в робочий час (09:00 - 19:00 за Києвом)' });
+    }
+
+    // 6. Перевірка перетину інтервалів (start1 < end2 AND end1 > start2)
     const overlappingBooking = await prisma.booking.findFirst({
       where: {
         roomId,
@@ -99,7 +133,7 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: Response) => {
   }
 });
 
-// Видалити бронювання (тільки власник)
+// Видалити бронювання
 router.delete('/:id', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
