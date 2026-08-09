@@ -28,6 +28,9 @@ docker-compose up -d --build
 ```bash
 docker exec -it room-booking_backend_1 npm run seed
 
+#or
+docker exec -it room-booking_backend_1 npx prisma db seed
+
 ```
 
 ---
