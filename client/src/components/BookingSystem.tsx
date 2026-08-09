@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { PlusCircle, Clock, Calendar, DoorOpen } from 'lucide-react';
+import { PlusCircle } from 'lucide-react';
 
 interface Room {
   id: string;
